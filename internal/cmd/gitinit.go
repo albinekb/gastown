@@ -80,6 +80,7 @@ const HQGitignore = `# Gas Town HQ .gitignore
 # =============================================================================
 daemon/
 logs/
+.stringer/
 
 # =============================================================================
 # Centralized Dolt SQL server data directory
