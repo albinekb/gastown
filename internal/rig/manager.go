@@ -560,6 +560,16 @@ func (m *Manager) AddRig(opts AddRigOptions) (*Rig, error) {
 		_ = doltserver.RemoveDatabase(m.townRoot, orphanDB, true)
 	}
 
+	// Drop orphan beads database created by bd init using the git remote URL basename (gt-a8i).
+	// bd init discovers the .repo.git/ remote and creates "beads_<repo-name>" (e.g.,
+	// "beads_epic-escape-dash") which differs from the sanitized rig name. The prefix-based
+	// cleanup above won't catch this because the URL basename != derived prefix.
+	if gitURLBasename := repoBasenameFromURL(opts.GitURL); gitURLBasename != "" {
+		if orphanDB := "beads_" + gitURLBasename; orphanDB != opts.Name {
+			_ = doltserver.RemoveDatabase(m.townRoot, orphanDB, true)
+		}
+	}
+
 	// Set issue_prefix on the correct server-side database.
 	// InitBeads ran bd config set issue_prefix, but against the wrong database
 	// (beads_<prefix> from bd init, not <rigName> from the centralized server).
@@ -1116,6 +1126,23 @@ var beadsPrefixRegexp = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9-]{0,19}$`)
 // malicious config files.
 func isValidBeadsPrefix(prefix string) bool {
 	return beadsPrefixRegexp.MatchString(prefix)
+}
+
+// repoBasenameFromURL extracts the repository name from a git URL.
+// Examples: "git@github.com:user/repo-name.git" -> "repo-name"
+//
+//	"https://github.com/user/repo-name" -> "repo-name"
+func repoBasenameFromURL(gitURL string) string {
+	name := strings.TrimSuffix(gitURL, ".git")
+	if idx := strings.LastIndex(name, "/"); idx >= 0 {
+		name = name[idx+1:]
+	} else if idx := strings.LastIndex(name, ":"); idx >= 0 {
+		name = name[idx+1:]
+	}
+	if name == "" {
+		return ""
+	}
+	return name
 }
 
 // isStandardBeadHash checks if a string looks like a standard 5-char bead hash.
