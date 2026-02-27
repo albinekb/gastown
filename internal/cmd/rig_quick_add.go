@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/steveyegge/gastown/internal/doltserver"
 	"github.com/steveyegge/gastown/internal/style"
 	"github.com/steveyegge/gastown/internal/workspace"
 )
@@ -102,6 +103,24 @@ func runRigQuickAdd(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\n%s Failed to add rig. You can try manually:\n", style.Warning.Render("⚠"))
 		fmt.Printf("  cd %s && gt rig add %s %s\n", townRoot, rigName, gitURL)
 		return fmt.Errorf("gt rig add failed: %w", err)
+	}
+
+	// Clean up orphan beads database created by bd init with the unsanitized name.
+	// bd init derives the database name from the git remote URL basename (e.g.,
+	// "epic-escape-dash" from the .repo.git/ remote), creating "beads_epic-escape-dash"
+	// on the Dolt server. The rig's actual database uses the sanitized name
+	// (e.g., "epic_escape_dash"). The existing orphan cleanup in InitBeads only
+	// targets "beads_<prefix>" and misses this URL-derived orphan (gt-a8i).
+	if rigName != originalName {
+		orphanDB := "beads_" + originalName
+		_ = doltserver.RemoveDatabase(townRoot, orphanDB, true)
+	}
+	// Also clean up using the git URL basename, which may differ from the directory
+	// name (e.g., repo renamed on GitHub but local clone retains old name).
+	gitURLBasename := repoNameFromURL(gitURL)
+	if gitURLBasename != "" && gitURLBasename != originalName && gitURLBasename != rigName {
+		orphanDB := "beads_" + gitURLBasename
+		_ = doltserver.RemoveDatabase(townRoot, orphanDB, true)
 	}
 
 	user := quickAddUser
@@ -202,4 +221,20 @@ func isValidTown(path string) bool {
 	mayorDir := filepath.Join(path, "mayor")
 	_, err := os.Stat(mayorDir)
 	return err == nil
+}
+
+// repoNameFromURL extracts the repository name from a git URL.
+// Examples: "git@github.com:user/repo-name.git" -> "repo-name"
+//
+//	"https://github.com/user/repo-name" -> "repo-name"
+func repoNameFromURL(gitURL string) string {
+	// Remove trailing .git
+	name := strings.TrimSuffix(gitURL, ".git")
+	// Handle both SSH (git@...:user/repo) and HTTPS (https://.../user/repo)
+	if idx := strings.LastIndex(name, "/"); idx >= 0 {
+		name = name[idx+1:]
+	} else if idx := strings.LastIndex(name, ":"); idx >= 0 {
+		name = name[idx+1:]
+	}
+	return name
 }

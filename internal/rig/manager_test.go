@@ -730,6 +730,29 @@ func TestDeriveBeadsPrefix(t *testing.T) {
 	}
 }
 
+func TestRepoBasenameFromURL(t *testing.T) {
+	tests := []struct {
+		url  string
+		want string
+	}{
+		{"git@github.com:user/epic-escape-dash.git", "epic-escape-dash"},
+		{"https://github.com/user/epic-escape-dash.git", "epic-escape-dash"},
+		{"https://github.com/user/epic-escape-dash", "epic-escape-dash"},
+		{"git@github.com:user/my_project.git", "my_project"},
+		{"https://github.com/user/simple.git", "simple"},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			got := repoBasenameFromURL(tt.url)
+			if got != tt.want {
+				t.Errorf("repoBasenameFromURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSplitCompoundWord(t *testing.T) {
 	tests := []struct {
 		word string
