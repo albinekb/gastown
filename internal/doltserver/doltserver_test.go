@@ -1778,11 +1778,35 @@ func TestInitRig_EmptyName(t *testing.T) {
 
 func TestInitRig_InvalidCharacters(t *testing.T) {
 	townRoot := t.TempDir()
-	for _, name := range []string{"my rig", "rig/name", "rig.name", "rig@name"} {
+	// Hyphens, dots, and spaces are now sanitized (replaced with underscores),
+	// so only truly invalid characters should fail.
+	for _, name := range []string{"rig/name", "rig@name"} {
 		_, _, err := InitRig(townRoot, name)
 		if err == nil {
 			t.Errorf("expected error for invalid rig name %q", name)
 		}
+	}
+}
+
+func TestSanitizeDBName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"epic-escape-dash", "epic_escape_dash"},
+		{"ClippElectronJS", "clippelectronjs"},
+		{"My-Mixed.Case", "my_mixed_case"},
+		{"already_good", "already_good"},
+		{"my rig", "my_rig"},
+		{"rig.name", "rig_name"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := sanitizeDBName(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeDBName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 

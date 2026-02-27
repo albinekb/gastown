@@ -1367,6 +1367,14 @@ func jsonKeys(m map[string]json.RawMessage) []string {
 
 // InitRig initializes a new rig database in the data directory.
 // If the Dolt server is running, it executes CREATE DATABASE to register the
+// sanitizeDBName normalizes a name for use as a dolt database name.
+// Lowercases, replaces hyphens/dots/spaces with underscores.
+func sanitizeDBName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.NewReplacer("-", "_", ".", "_", " ", "_").Replace(name)
+	return name
+}
+
 // database with the live server (avoiding the need for a restart).
 // Returns (serverWasRunning, created, err). created is false when the database
 // already existed on disk (idempotent no-op).
@@ -1374,6 +1382,12 @@ func InitRig(townRoot, rigName string) (serverWasRunning bool, created bool, err
 	if rigName == "" {
 		return false, false, fmt.Errorf("rig name cannot be empty")
 	}
+
+	// Sanitize the rig name for use as a dolt database name:
+	// lowercase and replace hyphens/dots/spaces with underscores.
+	// This prevents databases like "beads_ClippElectronJS" or
+	// "beads_epic-escape-dash" when the raw repo name leaks through.
+	rigName = sanitizeDBName(rigName)
 
 	config := DefaultConfig(townRoot)
 
@@ -2002,7 +2016,7 @@ func EnsureMetadata(townRoot, rigName string) error {
 	existing["backend"] = "dolt"
 	existing["dolt_mode"] = "server"
 	if existing["dolt_database"] == nil || existing["dolt_database"] == "" {
-		existing["dolt_database"] = rigName
+		existing["dolt_database"] = sanitizeDBName(rigName)
 	}
 
 	data, err := json.MarshalIndent(existing, "", "  ")

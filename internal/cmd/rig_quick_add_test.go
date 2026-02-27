@@ -84,6 +84,30 @@ func TestFindOrCreateTown(t *testing.T) {
 	})
 }
 
+func TestSanitizeRigName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"epic-escape-dash", "epic_escape_dash"},
+		{"my.project", "my_project"},
+		{"my project", "my_project"},
+		{"ClippElectronJS", "clippelectronjs"},
+		{"My-Mixed.Case", "my_mixed_case"},
+		{"already_good", "already_good"},
+		{"ALLCAPS", "allcaps"},
+		{"simple", "simple"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := sanitizeRigName(tt.input)
+			if got != tt.want {
+				t.Errorf("sanitizeRigName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsValidTown(t *testing.T) {
 	t.Run("valid town has mayor directory", func(t *testing.T) {
 		tmpDir := t.TempDir()
