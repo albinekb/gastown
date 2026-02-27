@@ -155,7 +155,7 @@ func runSlingFormula(args []string) error {
 		Dir(formulaWorkDir).
 		WithAutoCommit().
 		WithGTRoot(townRoot).
-		Output()
+		OutputWithRootOnlyFallback()
 	if err != nil {
 		rollbackSpawned("")
 		return fmt.Errorf("creating wisp: %w", err)

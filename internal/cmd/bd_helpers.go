@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -131,4 +133,47 @@ func (b *bdCmd) CombinedOutput() ([]byte, error) {
 	cmd.Dir = b.dir
 	cmd.Env = b.buildEnv()
 	return cmd.CombinedOutput()
+}
+
+// OutputWithRootOnlyFallback runs the command and returns stdout.
+// If the command fails because the installed bd version doesn't recognize
+// "--root-only", it retries without that flag. This provides graceful
+// degradation when gt is built against a newer bd API than what's installed.
+func (b *bdCmd) OutputWithRootOnlyFallback() ([]byte, error) {
+	// Capture stderr to detect "unknown flag" errors.
+	var stderrBuf bytes.Buffer
+	cmd := b.Build()
+	cmd.Stderr = &stderrBuf // Override configured stderr for error detection
+
+	out, err := cmd.Output()
+	if err == nil {
+		return out, nil
+	}
+
+	stderrStr := stderrBuf.String()
+	if !strings.Contains(stderrStr, "unknown flag: --root-only") {
+		// Not a flag compatibility error — forward stderr to configured destination.
+		if b.stderr != nil {
+			_, _ = fmt.Fprint(b.stderr, stderrStr)
+		}
+		return nil, err
+	}
+
+	// Strip --root-only and retry against older bd version.
+	fmt.Fprintf(os.Stderr, "Warning: bd version does not support --root-only; retrying without it\n")
+	newArgs := make([]string, 0, len(b.args))
+	for _, a := range b.args {
+		if a != "--root-only" {
+			newArgs = append(newArgs, a)
+		}
+	}
+	fallback := &bdCmd{
+		args:       newArgs,
+		dir:        b.dir,
+		env:        b.env,
+		stderr:     b.stderr,
+		autoCommit: b.autoCommit,
+		gtRoot:     b.gtRoot,
+	}
+	return fallback.Output()
 }
